@@ -1,6 +1,6 @@
 [project]
 name = "gh-pr-dashboard"
-version = "0.0.0"
+version = "0.1.0"
 description = "Open GitHub pull requests across users and orgs on one page: mergeability, stacking, Dependabot and CI"
 readme = "README.md"
 license = { file = "LICENSE" }
