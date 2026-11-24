@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/gx1400/gh-pr-dashboard/compare/v0.1.0...v0.1.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* keep merge-state pills inside their column ([88f5d40](https://github.com/gx1400/gh-pr-dashboard/commit/88f5d40597d4dfe7430cf9a90174999573f9f3ee))
+
 ## 0.1.0 (2026-11-24)
 
 
