@@ -51,6 +51,12 @@ class GitHubError(RuntimeError):
 
 def graphql(token: str, variables: dict, api: str = API) -> tuple[dict, list[str]]:
     """Run QUERY. Returns (data, partial-error messages)."""
+    data, errors = _graphql(token, variables, api)
+    return data, sorted({e.get("message", "?") for e in errors})
+
+
+def _graphql(token: str, variables: dict, api: str) -> tuple[dict, list[dict]]:
+    """Run QUERY. Returns (data, raw partial errors with their paths)."""
     body = json.dumps({"query": QUERY, "variables": variables}).encode()
     req = urllib.request.Request(
         api,
@@ -71,10 +77,79 @@ def graphql(token: str, variables: dict, api: str = API) -> tuple[dict, list[str
         raise GitHubError(f"HTTP {e.code} from GitHub") from None
     except urllib.error.URLError as e:
         raise GitHubError(f"cannot reach GitHub: {e.reason}") from None
-    errors = sorted({e.get("message", "?") for e in data.get("errors") or []})
+    errors = data.get("errors") or []
     if errors and not data.get("data"):
-        raise GitHubError("; ".join(errors))
+        raise GitHubError("; ".join(sorted({e.get("message", "?") for e in errors})))
     return data["data"], errors
+
+
+def _rest_get(url: str, token: str) -> dict:
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": "bearer " + token,
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"gh-pr-dashboard/{__version__}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as e:
+        raise GitHubError(f"HTTP {e.code} from GitHub") from None
+    except urllib.error.URLError as e:
+        raise GitHubError(f"cannot reach GitHub: {e.reason}") from None
+
+
+def actions_check_runs(repo: str, sha: str, token: str, rest: str) -> list[dict]:
+    """GitHub Actions jobs for a commit, shaped like the GraphQL CheckRun nodes.
+
+    Fine-grained personal access tokens can't read check runs at all (the Checks
+    API accepts only GitHub App tokens), so on private repos GraphQL returns null
+    contexts. Actions jobs are the same check runs for the github-actions app and
+    only need the Actions: read permission.
+    """
+    runs = _rest_get(f"{rest}/repos/{repo}/actions/runs?head_sha={sha}&per_page=100", token)
+    latest: dict = {}
+    for run in runs.get("workflow_runs") or []:  # newest first
+        latest.setdefault(run.get("workflow_id"), run)
+    checks = []
+    for run in latest.values():
+        jobs = _rest_get(run["jobs_url"] + "?per_page=100", token)
+        for job in jobs.get("jobs") or []:
+            checks.append(
+                {
+                    "__typename": "CheckRun",
+                    "name": job.get("name", "?"),
+                    "status": (job.get("status") or "").upper(),
+                    "conclusion": (job.get("conclusion") or "").upper() or None,
+                    "detailsUrl": job.get("html_url"),
+                }
+            )
+    return checks
+
+
+def _backfill_actions(pr: dict, token: str, rest: str) -> bool:
+    """Replace unreadable (null) check contexts with Actions jobs.
+
+    Returns True when every null context is accounted for, so the matching
+    partial error can be dropped.
+    """
+    nodes = pr["commits"]["nodes"]
+    rollup = nodes[0]["commit"].get("statusCheckRollup") if nodes else None
+    contexts = (rollup or {}).get("contexts") or {}
+    entries = contexts.get("nodes") or []
+    missing = sum(1 for c in entries if c is None)
+    if not missing:
+        return False
+    repo, sha = pr["repository"]["nameWithOwner"], nodes[0]["commit"].get("oid")
+    try:
+        jobs = actions_check_runs(repo, sha, token, rest)
+    except GitHubError as e:
+        log.warning("%s#%s: Actions backfill failed: %s", repo, pr.get("number"), e)
+        return False
+    contexts["nodes"] = [c for c in entries if c is not None] + jobs
+    return len(jobs) >= missing
 
 
 def fetch_owner(
@@ -87,18 +162,29 @@ def fetch_owner(
     on fine-grained token lifetime), so results may be incomplete.
     """
     prs: list[dict] = []
-    warnings: set[str] = set()
+    errors: list[tuple[dict, dict | None]] = []  # (error, the PR node its path points at)
     rate, after = None, None
     query = f"is:pr is:open archived:false user:{owner}"
     for _ in range(MAX_PAGES):
-        data, errors = graphql(token, {"q": query, "after": after}, api)
-        warnings.update(errors)
+        data, page_errors = _graphql(token, {"q": query, "after": after}, api)
         rate = data.get("rateLimit") or rate
         search = data["search"]
+        for e in page_errors:
+            path = e.get("path") or []
+            index = path[2] if path[:2] == ["search", "nodes"] and len(path) > 2 else None
+            in_page = isinstance(index, int) and index < len(search["nodes"])
+            errors.append((e, search["nodes"][index] if in_page else None))
         prs.extend(n for n in search["nodes"] if n)
         if not search["pageInfo"]["hasNextPage"]:
             break
         after = search["pageInfo"]["endCursor"]
+    rest = api.rsplit("/graphql", 1)[0]
+    filled = [pr for pr in prs if _backfill_actions(pr, token, rest)]
+    warnings = {
+        e.get("message", "?")
+        for e, node in errors
+        if not ("contexts" in (e.get("path") or []) and any(node is pr for pr in filled))
+    }
     return prs, rate, sorted(warnings)
 
 

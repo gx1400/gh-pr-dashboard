@@ -83,6 +83,11 @@ Without a config file, it reads `OWNERS` (comma-separated), `GITHUB_TOKEN`, `GIT
 Create a fine-grained personal access token for each owner, with access to **all repositories** and these read-only
 repository permissions: Actions, Commit statuses, Contents, and Pull requests. The app only reads.
 
+Fine-grained tokens can't read check runs (GitHub's Checks API accepts only GitHub App tokens), so on private repos
+GitHub returns those checks as unreadable. The dashboard then reads the same results from the Actions API (workflow
+jobs for the PR's head commit, covered by the Actions permission). Checks from other apps on private repos stay
+unknown, and the page notes that as "partial results".
+
 ## Endpoints
 
 | Path | |
