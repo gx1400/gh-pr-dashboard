@@ -141,28 +141,33 @@ def ci_summary(pr: dict) -> dict:
     return {"state": state, "passed": passed, "failed": failed, "pending": pending}
 
 
-def merge_summary(pr: dict) -> tuple[str, str]:
-    """(state class, label) from mergeable + mergeStateStatus."""
+def merge_summary(pr: dict) -> tuple[str, str, str | None]:
+    """(state class, short label, optional reason) from mergeable + mergeStateStatus.
+
+    Labels stay one or two words so they fit the column; the reason is shown on
+    a line of its own under the pill.
+    """
     m, s = pr["mergeable"], pr["mergeStateStatus"]
     if pr["isDraft"]:
-        return "draft", "Draft"
+        return "draft", "Draft", None
     if m == "CONFLICTING" or s == "DIRTY":
-        return "conflict", "Conflicts"
+        return "conflict", "Conflicts", None
     if m == "UNKNOWN" or s == "UNKNOWN":
         # GitHub computes mergeability lazily; the next poll usually has it
-        return "unknown", "Checking"
+        return "unknown", "Checking", None
     if s in ("CLEAN", "HAS_HOOKS"):
-        return "ready", "Ready"
+        return "ready", "Ready", None
     if s == "UNSTABLE":
-        return "ready", "Mergeable (non-required checks failing)"
+        # mergeable, but some non-required checks are failing or still running
+        return "ready", "Mergeable", "optional checks not green"
     if s == "BEHIND":
-        return "behind", "Behind base"
+        return "behind", "Behind base", None
     if s == "BLOCKED":
         why = {"REVIEW_REQUIRED": "review required", "CHANGES_REQUESTED": "changes requested"}.get(
             pr["reviewDecision"]
         )
-        return "blocked", "Blocked" + (f" ({why})" if why else "")
-    return "unknown", s.title() if s else "Unknown"
+        return "blocked", "Blocked", why
+    return "unknown", s.title() if s else "Unknown", None
 
 
 def build_rows(raw: list[dict], exclude: frozenset[str] = frozenset()) -> list[dict]:
@@ -189,7 +194,7 @@ def build_rows(raw: list[dict], exclude: frozenset[str] = frozenset()) -> list[d
             )
             author_node = pr.get("author") or {}
             author = author_node.get("login") or "ghost"
-            merge, merge_label = merge_summary(pr)
+            merge, merge_label, merge_reason = merge_summary(pr)
             rows.append(
                 {
                     "repo": repo,
@@ -209,6 +214,7 @@ def build_rows(raw: list[dict], exclude: frozenset[str] = frozenset()) -> list[d
                     "off_default": bool(default) and pr["baseRefName"] != default and not parent,
                     "merge": merge,
                     "merge_label": merge_label,
+                    "merge_reason": merge_reason,
                     "review": pr["reviewDecision"],
                     "ci": ci_summary(pr),
                     "labels": [label["name"] for label in pr["labels"]["nodes"]],
