@@ -113,7 +113,14 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             if path == "/":
                 self._send(200, index, "text/html; charset=utf-8")
             elif path == "/api/prs":
-                self._send(200, json.dumps(state.snapshot()).encode(), "application/json")
+                try:
+                    body = json.dumps(state.snapshot()).encode()
+                except Exception as e:  # answer JSON so the page can say what broke
+                    log.exception("building /api/prs failed")
+                    err = json.dumps({"error": f"{type(e).__name__}: {e}"}).encode()
+                    self._send(500, err, "application/json")
+                    return
+                self._send(200, body, "application/json")
             elif path == "/healthz":
                 self._send(200, b"ok\n", "text/plain")
             else:

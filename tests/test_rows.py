@@ -106,6 +106,18 @@ def test_ci_summary(pr):
     )
 
 
+def test_partial_graphql_nulls_are_skipped(pr):
+    # GitHub returns null list entries alongside "Resource not accessible by
+    # personal access token" partial errors.
+    ok = {"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}
+    node = pr(1, rollup={"state": "SUCCESS", "contexts": {"nodes": [None, ok]}})
+    node["labels"] = {"nodes": [None, {"name": "deps"}]}
+    ci = ci_summary(node)
+    assert (ci["state"], ci["passed"], ci["failed"], ci["pending"]) == ("pass", 1, [], 0)
+    assert build_rows([node])[0]["labels"] == ["deps"]
+    assert ci_summary(pr(1, rollup={"state": "PENDING", "contexts": None}))["state"] == "pending"
+
+
 def test_ci_summary_without_commits(pr):
     p = pr(1)
     p["commits"]["nodes"] = []
