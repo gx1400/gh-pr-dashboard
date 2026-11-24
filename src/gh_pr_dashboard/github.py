@@ -108,7 +108,11 @@ def ci_summary(pr: dict) -> dict:
     if not rollup:
         return {"state": "none", "passed": 0, "failed": [], "pending": 0}
     passed, pending, failed = 0, 0, []
-    for c in rollup["contexts"]["nodes"]:
+    # A partial GraphQL error (e.g. a check the token can't read) leaves null
+    # entries in this list; skip them rather than failing the whole snapshot.
+    for c in (rollup.get("contexts") or {}).get("nodes") or []:
+        if not c:
+            continue
         if c["__typename"] == "CheckRun":
             if c["status"] != "COMPLETED":
                 pending += 1
@@ -217,7 +221,7 @@ def build_rows(raw: list[dict], exclude: frozenset[str] = frozenset()) -> list[d
                     "merge_reason": merge_reason,
                     "review": pr["reviewDecision"],
                     "ci": ci_summary(pr),
-                    "labels": [label["name"] for label in pr["labels"]["nodes"]],
+                    "labels": [label["name"] for label in pr["labels"]["nodes"] if label],
                     "created": pr["createdAt"],
                     "updated": pr["updatedAt"],
                 }

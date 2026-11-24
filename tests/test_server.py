@@ -90,3 +90,18 @@ def test_http_endpoints(server):
     assert fetch(server + "/api/refresh", "POST")[0] == 202
     assert fetch(server + "/api/refresh", "POST")[0] == 429
     assert fetch(server + "/elsewhere", "POST")[0] == 404
+
+
+def test_api_error_is_json(pr):
+    bad = pr(4)
+    bad["labels"] = None  # anything build_rows can't handle
+    state = State(config("o"), {"TOK_O": "t"}, lambda o, t: ([bad], None, []))
+    state.poll()
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(state))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        status, headers, body = fetch(f"http://127.0.0.1:{httpd.server_port}/api/prs")
+    finally:
+        httpd.shutdown()
+    assert status == 500 and headers["Content-Type"] == "application/json"
+    assert json.loads(body)["error"].startswith("TypeError")
