@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/gx1400/gh-pr-dashboard/compare/v0.1.2...v0.1.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* read Actions CI when fine-grained tokens can't see check runs ([0b245fe](https://github.com/gx1400/gh-pr-dashboard/commit/0b245feb599d943d863ceb58f994a954fd1db047))
+
 ## [0.1.2](https://github.com/gx1400/gh-pr-dashboard/compare/v0.1.1...v0.1.2) (2026-11-24)
 
 
