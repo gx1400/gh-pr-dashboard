@@ -81,7 +81,10 @@ Without a config file, it reads `OWNERS` (comma-separated), `GITHUB_TOKEN`, `GIT
 ### Token permissions
 
 Create a fine-grained personal access token for each owner, with access to **all repositories** and these read-only
-repository permissions: Actions, Commit statuses, Contents, and Pull requests. The app only reads.
+repository permissions: Actions, Checks, Commit statuses, Contents, and Pull requests. The app only reads.
+Without **Checks**, GitHub Actions results come back as `null` with "Resource not accessible by personal access
+token", and the page shows a "partial results" banner with incomplete CI. Adding a permission to an existing token
+keeps its value, so nothing needs redeploying.
 
 ## Endpoints
 
