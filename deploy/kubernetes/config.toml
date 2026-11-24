@@ -1,0 +1,11 @@
+# Each owner's token is a key in the gh-pr-dashboard-tokens Secret, mounted as files.
+# Token files are re-read on every poll, so rotating the Secret needs no restart.
+refresh_seconds = 1800
+default_token_file = "/run/secrets/gh-pr-dashboard/github-token"
+
+[[owners]]
+name = "octocat"
+
+[[owners]]
+name = "my-org"
+token_file = "/run/secrets/gh-pr-dashboard/github-token-my-org"

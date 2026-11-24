@@ -1,0 +1,42 @@
+[project]
+name = "gh-pr-dashboard"
+version = "0.0.0"
+description = "Open GitHub pull requests across users and orgs on one page: mergeability, stacking, Dependabot and CI"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "Derek Rowland" }]
+keywords = ["github", "pull-requests", "dashboard", "dependabot", "ci"]
+# Runtime is stdlib only (urllib, http.server, tomllib).
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-cov>=5.0", "ruff>=0.7"]
+
+[project.scripts]
+gh-pr-dashboard = "gh_pr_dashboard.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/gx1400/gh-pr-dashboard"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+gh_pr_dashboard = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+ignore = ["E501"]

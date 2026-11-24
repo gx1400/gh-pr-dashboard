@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR dashboard</title>
+<meta name="generator" content="gh-pr-dashboard">
+<style>
+  :root {
+    --bg: #0f1115; --fg: #e6e6e6; --muted: #8b93a1; --card: #171a21; --border: #2a2f3a;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff; --grey: #6e7681;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f8fa; --fg: #1f2328; --muted: #59636e; --card: #fff; --border: #d1d9e0;
+      --green: #1a7f37; --red: #cf222e; --yellow: #9a6700; --blue: #0969da; --purple: #8250df; --grey: #6e7781; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 20px 40px; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 12px; }
+  h1 { font-size: 20px; margin: 0; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; user-select: none; }
+  .stat b { font-size: 18px; margin-right: 6px; }
+  .stat.active { outline: 2px solid var(--blue); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 12px; }
+  .controls label { color: var(--muted); }
+  select, input[type=search], button { background: var(--card); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font: inherit; }
+  button { cursor: pointer; }
+  .refresh-group { display: inline-flex; }
+  .refresh-group button { border-radius: 6px 0 0 6px; }
+  .refresh-group select { border-radius: 0 6px 6px 0; border-left: none; }
+  .errors { background: color-mix(in srgb, var(--red) 15%, transparent); border: 1px solid var(--red);
+    border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+  .repo { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; overflow-x: auto; }
+  .repo h2 { font-size: 15px; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .repo h2 .count { color: var(--muted); font-weight: normal; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 720px; }
+  col.c-num { width: 56px; } col.c-type { width: 150px; } col.c-merge { width: 130px; } col.c-ci { width: 140px; }
+  th, td { text-align: left; padding: 6px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  td.num { white-space: nowrap; width: 1%; }
+  .branch { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat.zero { opacity: .45; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .pill { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: 12px; line-height: 20px;
+    border: 1px solid currentColor; white-space: nowrap; margin: 1px 4px 1px 0; }
+  .g { color: var(--green); } .r { color: var(--red); } .y { color: var(--yellow); }
+  .b { color: var(--blue); } .p { color: var(--purple); } .n { color: var(--grey); }
+  code { font-size: 12px; background: color-mix(in srgb, var(--grey) 18%, transparent); padding: 0 4px; border-radius: 4px; }
+  .fails a, .fails span { color: var(--red); white-space: nowrap; }
+  .empty { color: var(--muted); padding: 20px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Open pull requests</h1>
+  <span class="meta" id="meta">loading…</span>
+  <span class="refresh-group">
+    <button id="refresh" title="Poll GitHub now">Refresh now</button><select id="interval" title="Auto-refresh from GitHub (saved in this browser)">
+      <option value="0">Off</option>
+      <option value="60">1m</option>
+      <option value="300">5m</option>
+      <option value="900">15m</option>
+      <option value="1800">30m</option>
+      <option value="3600">1h</option>
+    </select>
+  </span>
+</header>
+<div id="errors"></div>
+<div class="stats" id="stats"></div>
+<div class="controls">
+  <label>Owner <select id="owner"><option value="">all</option></select></label>
+  <label><input type="checkbox" id="hideDeps"> hide Dependabot</label>
+  <label><input type="checkbox" id="hideDrafts"> hide drafts</label>
+  <input type="search" id="q" placeholder="filter title / repo / branch">
+</div>
+<div id="list"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let data = null;
+let statFilter = "";
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+}
+const pill = (text, cls, title) => el("span", { class: "pill " + cls, text, ...(title ? { title } : {}) });
+const link = (href, text) => el("a", { href, text, target: "_blank", rel: "noopener" });
+
+function ago(iso) {
+  if (!iso) return "never";
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 90) return Math.round(s) + "s ago";
+  if (s < 5400) return Math.round(s / 60) + "m ago";
+  if (s < 129600) return Math.round(s / 3600) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+}
+
+const STATS = [
+  ["all", "open", () => true],
+  ["ready", "ready to merge", (p) => p.merge === "ready" && p.ci.state !== "fail" && p.ci.state !== "pending"],
+  ["cifail", "CI failing", (p) => p.ci.state === "fail"],
+  ["conflict", "conflicts", (p) => p.merge === "conflict"],
+  ["stacked", "stacked", (p) => p.stacked_on || p.stacked_children.length],
+  ["deps", "Dependabot", (p) => p.dependabot],
+];
+
+function visible() {
+  const owner = $("owner").value, q = $("q").value.trim().toLowerCase();
+  const stat = STATS.find((s) => s[0] === statFilter);
+  return data.prs.filter((p) =>
+    (!owner || p.owner === owner) &&
+    !($("hideDeps").checked && p.dependabot) &&
+    !($("hideDrafts").checked && p.draft) &&
+    (!stat || stat[2](p)) &&
+    (!q || [p.title, p.repo, p.head, p.base, p.author].join(" ").toLowerCase().includes(q)));
+}
+
+function ciCell(ci) {
+  const td = el("td");
+  if (ci.state === "none") return (td.append(pill("no CI", "n")), td);
+  const cls = { pass: "g", fail: "r", pending: "y" }[ci.state];
+  const label = { pass: "passed", fail: "failed", pending: "running" }[ci.state];
+  td.append(pill(label, cls, `${ci.passed} passed, ${ci.failed.length} failed, ${ci.pending} pending`));
+  if (ci.failed.length) {
+    const f = el("div", { class: "sub fails" });
+    ci.failed.forEach((c, i) => {
+      if (i) f.append(", ");
+      f.append(c.url ? link(c.url, c.name) : el("span", { text: c.name }));
+    });
+    td.append(f);
+  } else if (ci.pending) {
+    td.append(el("div", { class: "sub", text: `${ci.pending} pending` }));
+  }
+  return td;
+}
+
+function row(p) {
+  const kind = el("td");
+  if (p.dependabot) kind.append(pill("dependabot", "p"));
+  else if (p.bot) kind.append(pill("bot", "p"));
+  if (p.draft) kind.append(pill("draft", "n"));
+  if (p.stacked_on) kind.append(pill("stacked on #" + p.stacked_on, "b", "base branch is the head of another open PR"));
+  if (p.stacked_children.length) kind.append(pill("base of #" + p.stacked_children.join(", #"), "b", "other open PRs target this branch"));
+  if (p.off_default) kind.append(pill("→ " + p.base, "y", "targets a branch other than " + p.default_branch));
+
+  const mcls = { ready: "g", conflict: "r", blocked: "y", behind: "y", draft: "n", unknown: "n" }[p.merge] || "n";
+  const title = el("td", { class: "title" }, link(p.url, p.title),
+    el("div", { class: "sub" }, p.author + " · updated " + ago(p.updated)),
+    el("div", { class: "sub branch", title: p.head + " → " + p.base }, el("code", { text: p.head }), " → ", el("code", { text: p.base })));
+  return el("tr", {}, el("td", { class: "num" }, link(p.url, "#" + p.number)), title, kind,
+    el("td", {}, pill(p.merge_label, mcls)), ciCell(p.ci));
+}
+
+function render() {
+  if (!data) return;
+  const errs = Object.entries(data.errors || {});
+  $("errors").replaceChildren(...(errs.length ? [el("div", { class: "errors" },
+    ...errs.map(([o, m]) => el("div", { text: m.startsWith("partial results") ? `${o}: ${m}` : `${o}: ${m} (showing last good data, fetched ${ago(data.fetched[o])})` })))] : []));
+  const rl = data.rate_limit ? ` · API budget ${data.rate_limit.remaining}` : "";
+  const iv = Number($("interval").value);
+  $("meta").textContent = `polled ${ago(data.generated)} · auto-refresh ${iv ? $("interval").selectedOptions[0].text : "off"}${rl} · v${data.version}`;
+
+  $("stats").replaceChildren(...STATS.map(([key, label, fn]) => {
+    const n = data.prs.filter(fn).length;
+    const s = el("span", { class: "stat" + (statFilter === key || (!statFilter && key === "all") ? " active" : "") + (n ? "" : " zero") },
+      el("b", { text: String(n) }), label);
+    s.onclick = () => { statFilter = key === "all" ? "" : key; render(); };
+    return s;
+  }));
+
+  const prs = visible(), groups = new Map();
+  for (const p of prs) (groups.get(p.repo) || groups.set(p.repo, []).get(p.repo)).push(p);
+  const out = [];
+  for (const [repo, list] of groups) {
+    out.push(el("section", { class: "repo" },
+      el("h2", {}, link("https://github.com/" + repo + "/pulls", repo), el("span", { class: "count", text: ` (${list.length})` })),
+      el("table", {}, el("colgroup", {}, ...["c-num", "c-title", "c-type", "c-merge", "c-ci"].map((c) => el("col", { class: c }))),
+        el("thead", {}, el("tr", {}, ...["#", "Title", "Type", "Mergeable", "CI"].map((h) => el("th", { text: h })))),
+        el("tbody", {}, ...list.map(row)))));
+  }
+  $("list").replaceChildren(...(out.length ? out : [el("div", { class: "empty", text: data.generated ? "No open PRs match." : "Waiting for first poll…" })]));
+}
+
+async function load() {
+  try {
+    const r = await fetch("api/prs", { cache: "no-store" });
+    data = await r.json();
+    const sel = $("owner"), cur = sel.value;
+    if (sel.options.length !== data.owners.length + 1) {
+      sel.replaceChildren(el("option", { value: "", text: "all" }), ...data.owners.map((o) => el("option", { value: o, text: o })));
+      sel.value = cur;
+    }
+    render();
+  } catch (e) {
+    $("meta").textContent = "dashboard unreachable: " + e;
+  }
+}
+
+for (const id of ["owner", "hideDeps", "hideDrafts", "q"]) $(id).addEventListener("input", render);
+// Ask the server to poll GitHub, then wait for the new snapshot. The server
+// throttles polls to one per 30 s across all browsers, so a 429 just means
+// someone else refreshed moments ago and the cached data is current.
+let refreshing = false;
+async function refreshNow() {
+  if (refreshing) return;
+  refreshing = true;
+  $("refresh").textContent = "Refreshing…";
+  const before = data && data.generated;
+  try {
+    const r = await fetch("api/refresh", { method: "POST" });
+    if (r.status !== 202) { await load(); return; }
+    for (let i = 0; i < 15; i++) {
+      await new Promise((res) => setTimeout(res, 2000));
+      await load();
+      if (data && data.generated !== before) break;
+    }
+  } finally {
+    refreshing = false;
+    $("refresh").textContent = "Refresh now";
+  }
+}
+
+// Grafana-style auto-refresh, chosen per browser (localStorage), default 30m.
+const KEY = "pr-dashboard.refresh";
+let timer = null;
+function schedule() {
+  clearInterval(timer);
+  const s = Number($("interval").value);
+  if (s) timer = setInterval(refreshNow, s * 1000);
+  render();
+}
+$("interval").value = localStorage.getItem(KEY) ?? "1800";
+if (!$("interval").value) $("interval").value = "1800";
+$("interval").onchange = () => { localStorage.setItem(KEY, $("interval").value); schedule(); };
+$("refresh").onclick = refreshNow;
+
+load().then(() => {
+  // opening the page with stale data (older than the chosen interval) refreshes at once
+  const s = Number($("interval").value);
+  if (s && data && data.generated && (Date.now() - new Date(data.generated)) / 1000 > s) refreshNow();
+});
+schedule();
+setInterval(render, 30000); // keep the "x ago" labels current
+</script>
+</body>
+</html>

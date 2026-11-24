@@ -1,0 +1,14 @@
+# docker compose -f docker-compose.example.yml up -d
+# Put tokens in .env (GITHUB_TOKEN=..., GITHUB_TOKEN_APRS_NET=...), never in the config.
+services:
+  gh-pr-dashboard:
+    image: ghcr.io/gx1400/gh-pr-dashboard:0.0.0 # x-release-please-version
+    restart: unless-stopped
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./config.toml:/config/config.toml:ro

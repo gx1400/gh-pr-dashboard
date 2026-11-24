@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # Dev tooling in pyproject.toml (the runtime has no dependencies).
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional Commits, so release-please classifies these correctly.
+      prefix: "build"
+      prefix-development: "chore"
+      include: scope
+    groups:
+      dev:
+        dependency-type: development
+
+  # GitHub Actions are pinned by commit SHA; Dependabot keeps the pins and their
+  # version comments current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: scope
+
+  # Base image updates for the container. A merged bump is a fix release, so the
+  # image picks up Python and Alpine security fixes.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "fix"
+      include: scope

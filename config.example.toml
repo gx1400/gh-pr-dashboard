@@ -1,0 +1,30 @@
+# gh-pr-dashboard config. Mount it at /config/config.toml (or point PRD_CONFIG at it).
+# Tokens never go in this file: each owner names the env var or file that holds its token.
+
+# Server-side poll interval in seconds (minimum 60). Browsers can poll more often
+# with the page's auto-refresh picker, capped at one poll per 30 s overall.
+refresh_seconds = 1800
+
+# Repos to hide, as owner/repo.
+exclude_repos = []
+
+# Token for owners that don't set their own (default: env GITHUB_TOKEN).
+default_token_env = "GITHUB_TOKEN"
+# default_token_file = "/run/secrets/github-token"
+
+# One [[owners]] block per GitHub user or org.
+# An owner without token_env / token_file uses env GITHUB_TOKEN_<OWNER> when it is set
+# (upper-cased, non-alphanumerics -> "_", e.g. APRS-NET -> GITHUB_TOKEN_APRS_NET),
+# and otherwise the default token.
+
+[[owners]]
+name = "gx1400"
+
+[[owners]]
+name = "APRS-NET"
+token_env = "GITHUB_TOKEN_APRS_NET"
+
+[[owners]]
+name = "WA0RC"
+# Token files are re-read on every poll, so a rotated Secret applies without a restart.
+token_file = "/run/secrets/pr-dashboard/github-token-wa0rc"
