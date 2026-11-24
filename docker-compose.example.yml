@@ -2,7 +2,7 @@
 # Put tokens in .env (GITHUB_TOKEN=..., GITHUB_TOKEN_APRS_NET=...), never in the config.
 services:
   gh-pr-dashboard:
-    image: ghcr.io/gx1400/gh-pr-dashboard:0.1.1 # x-release-please-version
+    image: ghcr.io/gx1400/gh-pr-dashboard:0.1.2 # x-release-please-version
     restart: unless-stopped
     read_only: true
     security_opt: ["no-new-privileges:true"]
