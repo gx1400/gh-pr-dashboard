@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/gx1400/gh-pr-dashboard/compare/v0.1.1...v0.1.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* survive null nodes from partial GraphQL errors ([fa562b2](https://github.com/gx1400/gh-pr-dashboard/commit/fa562b2e0a5e9ce1c3fdd3ccb3ecd89ec87524be))
+
 ## [0.1.1](https://github.com/gx1400/gh-pr-dashboard/compare/v0.1.0...v0.1.1) (2026-11-24)
 
 

@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: gh-pr-dashboard
-        image: ghcr.io/gx1400/gh-pr-dashboard:0.1.1 # x-release-please-version
+        image: ghcr.io/gx1400/gh-pr-dashboard:0.1.2 # x-release-please-version
         ports:
         - name: http
           containerPort: 8080
