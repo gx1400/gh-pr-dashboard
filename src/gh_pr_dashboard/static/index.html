@@ -48,7 +48,8 @@
   .branch { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stat.zero { opacity: .45; }
   .sub { color: var(--muted); font-size: 12px; }
-  .pill { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: 12px; line-height: 20px;
+  .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top;
+    display: inline-block; border-radius: 999px; padding: 0 8px; font-size: 12px; line-height: 20px;
     border: 1px solid currentColor; white-space: nowrap; margin: 1px 4px 1px 0; }
   .g { color: var(--green); } .r { color: var(--red); } .y { color: var(--yellow); }
   .b { color: var(--blue); } .p { color: var(--purple); } .n { color: var(--grey); }
@@ -160,7 +161,8 @@ function row(p) {
     el("div", { class: "sub" }, p.author + " · updated " + ago(p.updated)),
     el("div", { class: "sub branch", title: p.head + " → " + p.base }, el("code", { text: p.head }), " → ", el("code", { text: p.base })));
   return el("tr", {}, el("td", { class: "num" }, link(p.url, "#" + p.number)), title, kind,
-    el("td", {}, pill(p.merge_label, mcls)), ciCell(p.ci));
+    el("td", {}, pill(p.merge_label, mcls, p.merge_reason || p.merge_label),
+      p.merge_reason ? el("div", { class: "sub", text: p.merge_reason }) : null), ciCell(p.ci));
 }
 
 function render() {

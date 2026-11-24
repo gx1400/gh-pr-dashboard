@@ -113,17 +113,31 @@ def test_ci_summary_without_commits(pr):
 
 
 def test_merge_summary(pr):
-    assert merge_summary(pr(1, draft=True)) == ("draft", "Draft")
+    assert merge_summary(pr(1, draft=True)) == ("draft", "Draft", None)
     assert merge_summary(pr(1, mergeable="CONFLICTING"))[0] == "conflict"
     assert merge_summary(pr(1, merge_state="DIRTY"))[0] == "conflict"
     assert merge_summary(pr(1, mergeable="UNKNOWN"))[0] == "unknown"
-    assert merge_summary(pr(1)) == ("ready", "Ready")
+    assert merge_summary(pr(1)) == ("ready", "Ready", None)
     assert merge_summary(pr(1, merge_state="HAS_HOOKS"))[0] == "ready"
-    assert merge_summary(pr(1, merge_state="UNSTABLE"))[0] == "ready"
-    assert merge_summary(pr(1, merge_state="BEHIND")) == ("behind", "Behind base")
+    assert merge_summary(pr(1, merge_state="UNSTABLE")) == (
+        "ready",
+        "Mergeable",
+        "optional checks not green",
+    )
+    assert merge_summary(pr(1, merge_state="BEHIND")) == ("behind", "Behind base", None)
     assert merge_summary(pr(1, merge_state="BLOCKED", review="REVIEW_REQUIRED")) == (
         "blocked",
-        "Blocked (review required)",
+        "Blocked",
+        "review required",
     )
-    assert merge_summary(pr(1, merge_state="BLOCKED")) == ("blocked", "Blocked")
-    assert merge_summary(pr(1, merge_state="SOMETHING_NEW")) == ("unknown", "Something_New")
+    assert merge_summary(pr(1, merge_state="BLOCKED")) == ("blocked", "Blocked", None)
+    assert merge_summary(pr(1, merge_state="SOMETHING_NEW")) == ("unknown", "Something_New", None)
+
+
+def test_merge_labels_stay_short(pr):
+    """Long labels overflowed the fixed-width column; the detail goes in merge_reason."""
+    states = ["CLEAN", "HAS_HOOKS", "UNSTABLE", "BEHIND", "BLOCKED", "DIRTY", "UNKNOWN"]
+    reviews = [None, "REVIEW_REQUIRED", "CHANGES_REQUESTED"]
+    for s in states:
+        for rv in reviews:
+            assert len(merge_summary(pr(1, merge_state=s, review=rv))[1]) <= 12
