@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gh-pr-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gh-pr-dashboard
+  template:
+    metadata:
+      labels:
+        app: gh-pr-dashboard
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: gh-pr-dashboard
+        image: ghcr.io/gx1400/gh-pr-dashboard:0.0.0 # x-release-please-version
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          httpGet: { path: /healthz, port: http }
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+          periodSeconds: 30
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+          limits: { memory: 128Mi }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: ["ALL"] }
+        volumeMounts:
+        - { name: config, mountPath: /config, readOnly: true }
+        - { name: tokens, mountPath: /run/secrets/gh-pr-dashboard, readOnly: true }
+      volumes:
+      - name: config
+        configMap: { name: gh-pr-dashboard-config }
+      - name: tokens
+        secret: { secretName: gh-pr-dashboard-tokens }
